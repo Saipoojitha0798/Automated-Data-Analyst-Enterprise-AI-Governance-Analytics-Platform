@@ -1,0 +1,58 @@
+import unittest
+
+from streamlit.testing.v1 import AppTest
+
+
+class AppSmokeTests(unittest.TestCase):
+    def test_demo_renders_complete_product(self):
+        app = AppTest.from_file("app.py", default_timeout=45).run()
+
+        self.assertFalse(app.exception)
+        self.assertEqual(
+            [radio.label for radio in app.radio],
+            ["Navigation"],
+        )
+        self.assertEqual(len(app.dataframe), 0)
+
+    def test_drill_down_focuses_the_whole_analysis(self):
+        app = AppTest.from_file("app.py", default_timeout=45).run()
+        focus_box = next(box for box in app.selectbox if box.label.startswith("Drill into"))
+        focus_box.set_value("Enterprise").run()
+
+        self.assertFalse(app.exception)
+        rendered = " ".join(str(block.value) for block in app.markdown)
+        self.assertIn("Focus · Enterprise", rendered)
+        self.assertIn("Segment · Region", rendered)
+
+    def test_ask_insightguard_answers_a_question(self):
+        app = AppTest.from_file("app.py", default_timeout=45).run()
+        app.radio[0].set_value("AI Insights").run()
+        app.chat_input[0].set_value("top 3 products by revenue").run()
+
+        self.assertFalse(app.exception)
+        history = app.session_state["chat_history"]
+        self.assertEqual(len(history), 1)
+        self.assertIsNotNone(history[0]["result"])
+        self.assertIn("Product", history[0]["result"].answer)
+
+    def test_ask_insightguard_explains_unreadable_questions(self):
+        app = AppTest.from_file("app.py", default_timeout=45).run()
+        app.radio[0].set_value("AI Insights").run()
+        app.chat_input[0].set_value("tell me a joke").run()
+
+        self.assertFalse(app.exception)
+        history = app.session_state["chat_history"]
+        self.assertEqual(len(history), 1)
+        self.assertIsNone(history[0]["result"])
+
+    def test_upload_mode_waits_for_a_file(self):
+        app = AppTest.from_file("app.py", default_timeout=45).run()
+        app.segmented_control[0].set_value("Upload your file").run()
+
+        self.assertFalse(app.exception)
+        self.assertEqual(len(app.file_uploader), 1)
+        self.assertEqual(len(app.radio), 0)
+
+
+if __name__ == "__main__":
+    unittest.main()
